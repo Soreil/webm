@@ -12,7 +12,7 @@ package webm
 
 #define PIX_FMT_CHOSEN PIX_FMT_RGBA
 //Buffer Size usage is a bit bugged out, make it big!
-#define BUFFER_SIZE 32000
+#define BUFFER_SIZE 128000
 
 #define CHECK_ERR(ERR) {if ((ERR)<0) return ERR; }
 
