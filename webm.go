@@ -113,7 +113,7 @@ func init() {
 	image.RegisterFormat("webm", webmHeader, Decode, DecodeConfig)
 }
 
-//TODO(sjon): Blows up on printing
+//Uses CGo FFmpeg binding to extract Webm frame
 func decode(data []byte) (image.Image, error) {
 	f := C.extract_webm_image((*C.uchar)(unsafe.Pointer(&data[0])), C.size_t(len(data)))
 	if f == nil {
@@ -125,7 +125,7 @@ func decode(data []byte) (image.Image, error) {
 		Rect:   image.Rectangle{Min: image.Point{X: 0, Y: 0}, Max: image.Point{X: int(f.width), Y: int(f.height)}}}, nil
 }
 
-//TODO(sjon):Use C code to decode, need to find a way to create a formatcontext without reading file from disk
+//Decodes the first frame of a Webm video in to an image
 func Decode(r io.Reader) (image.Image, error) {
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
@@ -135,6 +135,7 @@ func Decode(r io.Reader) (image.Image, error) {
 }
 
 //TODO(sjon):Use C code first part, return before sws_scale
+//Returns Webm metadata
 func DecodeConfig(r io.Reader) (image.Config, error) {
 	return image.Config{}, errors.New("Not implemented")
 }
