@@ -12,13 +12,15 @@ package webm
 
 #define PIX_FMT_CHOSEN PIX_FMT_RGBA
 //Buffer Size usage is a bit bugged out, make it big!
-#define BUFFER_SIZE 128000
+#define BUFFER_SIZE 100000
 
 #define CHECK_ERR(ERR) {if ((ERR)<0) return ERR; }
 
 static int readFunc(void* opaque,  unsigned char* buf, int buf_size) {
 	memcpy(buf,opaque,buf_size);
-	opaque+=buf_size;
+	unsigned char* chars = (unsigned char*) opaque;
+	chars+=buf_size;
+	opaque = (void *)chars;
 	return buf_size;
 
 }
@@ -90,9 +92,14 @@ AVFrame * extract_webm_image(unsigned char *opaque,size_t len)
 				rgbFrame->width = frame->width;
 				rgbFrame->format = frame->format;
 
+				//Throwing out the old stuff
+				av_free(ioCtx);
+				av_free(buffer);
+				//avformat_free_context(ctx);
+				av_frame_free(&frame);
 				return rgbFrame;
 			}
-			//av_frame_free(&frame);
+			av_frame_free(&frame);
 		}
 	}
 }
@@ -106,8 +113,7 @@ import (
 	"unsafe"
 )
 
-//TODO(sjon): add actual header here
-const webmHeader = ""
+const webmHeader = "???????????????????????????????webm"
 
 func init() {
 	image.RegisterFormat("webm", webmHeader, Decode, DecodeConfig)
