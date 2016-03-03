@@ -12,18 +12,26 @@ package webm
 
 #define PIX_FMT_CHOSEN PIX_FMT_RGBA
 //Buffer Size usage is a bit bugged out, make it big!
-#define BUFFER_SIZE 100000
+#define BUFFER_SIZE 4096
 
 #define CHECK_ERR(ERR) {if ((ERR)<0) return ERR; }
 
-static int readFunc(void* opaque,  unsigned char* buf, int buf_size) {
-	memcpy(buf,opaque,buf_size);
-	unsigned char* chars = (unsigned char*) opaque;
-	chars+=buf_size;
-	opaque = (void *)chars;
-	return buf_size;
 
+struct buffer_data {
+    uint8_t *ptr;
+    size_t size; ///< size left in the buffer
+};
+static int read_packet(void *opaque, uint8_t *buf, int buf_size)
+{
+    struct buffer_data *bd = (struct buffer_data *)opaque;
+    buf_size = FFMIN(buf_size, bd->size);
+    // copy internal buffer data to buf
+    memcpy(buf, bd->ptr, buf_size);
+    bd->ptr  += buf_size;
+    bd->size -= buf_size;
+    return buf_size;
 }
+
 
 AVFrame * extract_webm_image(unsigned char *opaque,size_t len)
 {
@@ -34,11 +42,15 @@ AVFrame * extract_webm_image(unsigned char *opaque,size_t len)
 	//free with av_free()
 	unsigned char *buffer = (unsigned char*)av_malloc(BUFFER_SIZE+FF_INPUT_BUFFER_PADDING_SIZE);
 
+	//NEW BUFFER THING
+	struct buffer_data bd = {0};
+	bd.ptr = opaque;
+	bd.size = len;
 
 	//Allocate avioContext
 	//Has to be av_free()'d
 	//TODO(sjon): Implement custom reader
-	AVIOContext *ioCtx = avio_alloc_context(buffer,BUFFER_SIZE,0,opaque,&readFunc,NULL,NULL);
+	AVIOContext *ioCtx = avio_alloc_context(buffer,BUFFER_SIZE,0,&bd,&read_packet,NULL,NULL);
 
 	//destroy with avformat_free_contex()
 	AVFormatContext * ctx = avformat_alloc_context();
