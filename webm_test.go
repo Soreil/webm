@@ -53,3 +53,19 @@ func TestWebmToJPG(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestWebmDecodeConfig(t *testing.T) {
+	const filename = dataDirectory + "wafel.webm"
+	if _, err := os.Stat(filename); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, name, err := image.DecodeConfig(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(img, name, err)
+}

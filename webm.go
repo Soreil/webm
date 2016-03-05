@@ -114,11 +114,53 @@ AVFrame * extract_webm_image(unsigned char *opaque,size_t len)
 		}
 	}
 }
+
+AVCodecContext * extract_webm_metadata(unsigned char *opaque,size_t len)
+{
+	av_register_all();
+	avcodec_register_all();
+
+	unsigned char *buffer = (unsigned char*)av_malloc(BUFFER_SIZE+FF_INPUT_BUFFER_PADDING_SIZE);
+
+	struct buffer_data bd = {0};
+	bd.ptr = opaque;
+	bd.size = len;
+
+	//Allocate avioContext
+	AVIOContext *ioCtx = avio_alloc_context(buffer,BUFFER_SIZE,0,&bd,&read_packet,NULL,NULL);
+
+	AVFormatContext * ctx = avformat_alloc_context();
+
+	//Set up context to read from memory
+	ctx->pb = ioCtx;
+
+	//open takes a fake filename when the context pb field is set up
+	int err = avformat_open_input(&ctx, "dummyFileName", NULL, NULL);
+	if (err < 0) {
+		return NULL;
+	}
+
+	err = avformat_find_stream_info(ctx,NULL);
+	if (err < 0) {
+		return NULL;
+	}
+
+	AVCodec * codec = NULL;
+	int strm = av_find_best_stream(ctx, AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
+
+	AVCodecContext * codecCtx = ctx->streams[strm]->codec;
+	err = avcodec_open2(codecCtx, codec, NULL);
+	if (err < 0) {
+		return NULL;
+	}
+	return codecCtx;
+}
 */
 import "C"
 import (
 	"errors"
 	"image"
+	"image/color"
 	"io"
 	"io/ioutil"
 	"unsafe"
@@ -142,6 +184,18 @@ func decode(data []byte) (image.Image, error) {
 		Rect:   image.Rectangle{Min: image.Point{X: 0, Y: 0}, Max: image.Point{X: int(f.width), Y: int(f.height)}}}, nil
 }
 
+//Uses CGo FFmpeg binding to extract Webm frame
+func decodeConfig(data []byte) (image.Config, error) {
+	f := C.extract_webm_metadata((*C.uchar)(unsafe.Pointer(&data[0])), C.size_t(len(data)))
+	if f == nil {
+		return image.Config{}, errors.New("Failed to decode")
+	}
+	//TODO(sjon):Extract actual pixel format / color model
+	return image.Config{ColorModel: color.RGBAModel,
+		Width:  int(f.width),
+		Height: int(f.height)}, nil
+}
+
 //Decodes the first frame of a Webm video in to an image
 func Decode(r io.Reader) (image.Image, error) {
 	b, err := ioutil.ReadAll(r)
@@ -151,8 +205,11 @@ func Decode(r io.Reader) (image.Image, error) {
 	return decode(b)
 }
 
-//TODO(sjon):Use C code first part, return before sws_scale
 //Returns Webm metadata
 func DecodeConfig(r io.Reader) (image.Config, error) {
-	return image.Config{}, errors.New("Not implemented")
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return image.Config{}, err
+	}
+	return decodeConfig(b)
 }
