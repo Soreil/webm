@@ -5,11 +5,11 @@ package webm
 
 #include <libavcodec/avcodec.h>
 #include <libavutil/frame.h>
+#include <libavutil/pixdesc.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 #include <stdio.h>
 
-#define PIX_FMT_CHOSEN PIX_FMT_RGBA
 #define BUFFER_SIZE 4096
 
 struct buffer_data {
@@ -67,13 +67,6 @@ AVFrame * extract_webm_image(unsigned char *opaque,size_t len)
 		return NULL;
 	}
 
-	struct SwsContext * swCtx = sws_getContext(codecCtx->width,
-			codecCtx->height,
-			codecCtx->pix_fmt,
-			codecCtx->width,
-			codecCtx->height,
-			PIX_FMT_CHOSEN,
-			SWS_FAST_BILINEAR, NULL, NULL, NULL);
 
 	for (;;)
 	{
@@ -94,21 +87,13 @@ AVFrame * extract_webm_image(unsigned char *opaque,size_t len)
 
 			if (got)
 			{
-				AVFrame * rgbFrame = av_frame_alloc();
-				avpicture_alloc((AVPicture *)rgbFrame, PIX_FMT_CHOSEN, codecCtx->width, codecCtx->height);
-
-				sws_scale(swCtx,(const unsigned char * const*) frame->data, frame->linesize, 0, frame->height, rgbFrame->data, rgbFrame->linesize);
-				rgbFrame->height = frame->height;
-				rgbFrame->width = frame->width;
-				rgbFrame->format = frame->format;
-
 				//Throwing out the old stuff
 				av_free(ioCtx);
 				av_free(buffer);
 				//avformat_free_context(ctx);
-				av_frame_free(&frame);
 
-				return rgbFrame;
+				printf("%s\n",av_get_pix_fmt_name(frame->format));
+				return frame;
 			}
 			av_frame_free(&frame);
 		}
@@ -178,22 +163,35 @@ func decode(data []byte) (image.Image, error) {
 	if f == nil {
 		return nil, errors.New("Failed to decode")
 	}
-	bs := C.GoBytes(unsafe.Pointer(f.data[0]), f.linesize[0]*f.height)
-	return &image.RGBA{Pix: bs,
-		Stride: int(f.linesize[0]),
-		Rect:   image.Rectangle{Min: image.Point{X: 0, Y: 0}, Max: image.Point{X: int(f.width), Y: int(f.height)}}}, nil
+	if C.GoString(C.av_get_pix_fmt_name(int32(f.format))) != "yuv420p" {
+		return nil, errors.New("Didn't get format: " + image.YCbCrSubsampleRatio420.String() + "instead got: " + C.GoString(C.av_get_pix_fmt_name(int32(f.format))))
+	}
+	y := C.GoBytes(unsafe.Pointer(f.data[0]), f.linesize[0]*f.height)
+	u := C.GoBytes(unsafe.Pointer(f.data[1]), f.linesize[0]*f.height/4)
+	v := C.GoBytes(unsafe.Pointer(f.data[2]), f.linesize[0]*f.height/4)
+
+	return &image.YCbCr{Y: y,
+		Cb:             u,
+		Cr:             v,
+		YStride:        int(f.linesize[0]),
+		CStride:        int(f.linesize[0]) / 2,
+		SubsampleRatio: image.YCbCrSubsampleRatio420,
+		Rect:           image.Rectangle{Min: image.Point{X: 0, Y: 0}, Max: image.Point{X: int(f.width), Y: int(f.height)}}}, nil
 }
 
-//Uses CGo FFmpeg binding to extract Webm frame
+//Uses CGo FFmpeg binding to find webm config
 func decodeConfig(data []byte) (image.Config, error) {
 	f := C.extract_webm_metadata((*C.uchar)(unsafe.Pointer(&data[0])), C.size_t(len(data)))
 	if f == nil {
 		return image.Config{}, errors.New("Failed to decode")
 	}
-	//TODO(sjon):Extract actual pixel format / color model
-	return image.Config{ColorModel: color.RGBAModel,
-		Width:  int(f.width),
-		Height: int(f.height)}, nil
+	if C.GoString(C.av_get_pix_fmt_name(int32(f.pix_fmt))) == "yuv420p" {
+		return image.Config{ColorModel: color.YCbCrModel,
+			Width:  int(f.width),
+			Height: int(f.height)}, nil
+	}
+	return image.Config{}, nil
+
 }
 
 //Decodes the first frame of a Webm video in to an image
