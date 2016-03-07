@@ -92,7 +92,6 @@ AVFrame * extract_webm_image(unsigned char *opaque,size_t len)
 				av_free(buffer);
 				//avformat_free_context(ctx);
 
-				printf("%s\n",av_get_pix_fmt_name(frame->format));
 				return frame;
 			}
 			av_frame_free(&frame);
