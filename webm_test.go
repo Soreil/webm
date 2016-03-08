@@ -16,6 +16,7 @@ func TestWebmToPNG(t *testing.T) {
 		t.Fatal(err)
 	}
 	file, err := os.Open(filename)
+	defer file.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,6 +39,7 @@ func TestWebmToJPG(t *testing.T) {
 		t.Fatal(err)
 	}
 	file, err := os.Open(filename)
+	defer file.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +62,7 @@ func TestWebmDecodeConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	file, err := os.Open(filename)
+	defer file.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,4 +71,21 @@ func TestWebmDecodeConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(img, name, err)
+}
+
+func BenchmarkDecode(b *testing.B) {
+	const filename = dataDirectory + "wafel.webm"
+	if _, err := os.Stat(filename); err != nil {
+		b.Fatal(err)
+	}
+	for i := 0; i < b.N; i++ {
+		file, err := os.Open(filename)
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, err = Decode(file)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }

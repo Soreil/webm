@@ -147,6 +147,7 @@ import (
 	"image/color"
 	"io"
 	"io/ioutil"
+	"log"
 	"unsafe"
 )
 
@@ -164,6 +165,9 @@ func decode(data []byte) (image.Image, error) {
 	}
 	if C.GoString(C.av_get_pix_fmt_name(int32(f.format))) != "yuv420p" {
 		return nil, errors.New("Didn't get format: " + image.YCbCrSubsampleRatio420.String() + "instead got: " + C.GoString(C.av_get_pix_fmt_name(int32(f.format))))
+	}
+	if f.color_range != C.AVCOL_RANGE_MPEG {
+		log.Println("Unexpected color range: ", f.color_range)
 	}
 	y := C.GoBytes(unsafe.Pointer(f.data[0]), f.linesize[0]*f.height)
 	u := C.GoBytes(unsafe.Pointer(f.data[1]), f.linesize[0]*f.height/4)
@@ -190,7 +194,6 @@ func decodeConfig(data []byte) (image.Config, error) {
 			Height: int(f.height)}, nil
 	}
 	return image.Config{}, nil
-
 }
 
 //Decodes the first frame of a Webm video in to an image
