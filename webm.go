@@ -148,6 +148,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"strings"
 	"unsafe"
 )
 
@@ -188,12 +189,15 @@ func decodeConfig(data []byte) (image.Config, error) {
 	if f == nil {
 		return image.Config{}, errors.New("Failed to decode")
 	}
-	if C.GoString(C.av_get_pix_fmt_name(int32(f.pix_fmt))) == "yuv420p" {
+	if strings.Contains(C.GoString(C.av_get_pix_fmt_name(int32(f.pix_fmt))), "yuv") {
 		return image.Config{ColorModel: color.YCbCrModel,
 			Width:  int(f.width),
 			Height: int(f.height)}, nil
+	} else {
+		return image.Config{ColorModel: color.RGBAModel,
+			Width:  int(f.width),
+			Height: int(f.height)}, nil
 	}
-	return image.Config{}, nil
 }
 
 //Decodes the first frame of a Webm video in to an image
